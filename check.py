@@ -1,29 +1,74 @@
 import logging
 import requests
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
 logger = logging.getLogger('urlchecker')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
-def check_absolute(url, deepth=1, extract_id=None, extract_class=None, internal_urls=[]):
+sh = logging.StreamHandler()
+sh.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter('%(levelname)s - %(message)s')
+
+sh.setFormatter(formatter)
+
+logger.addHandler(sh)
+
+checked_urls = []
+
+def absolute_urls(url, deepth=1, extract_id=None, extract_class=None, internal_urls=[]):
     """ check for absolute internal urls
     """
-    checked_urls = []
+
+    logger.info('process "%s"', url)
     
     r = requests.get(url)
     if r.status_code != 200:
         logger.error('[%d] Error loading page "%s"', r.status_code, url)
-    
+
+    if not 'text/html' in r.headers['content-type']:
+        logger.debug('skip non-html file: %s', r.headers['content-type'])
+        return
+
     bs = BeautifulSoup(r.text)
 
     if extract_id is not None:
         bs = bs.find(attrs={'id': extract_id})
+    elif extract_class is not None:
+        bs = bs.find(attrs={'class': extract_class})
+
+    links = []
+
+    if bs is None:
+        logger.debug('Empty page content, check extract_id/extract_class')
+        return
 
     for a in bs.findAll('a'):
+        if not a.has_attr('href'):
+            logger.error('Invalid link: "%s"', a)
+            continue
+
         href = a['href']
+        if href in checked_urls:
+            continue
+
+        if href.startswith('mailto'):
+            logger.debug('mail link found: %s', href)
+            continue
+
         if href.startswith('http'):
             h = href[href.find('//')+2:]
             if h[:h.find('/')] in internal_urls:
                 logger.warn('internal absolute url found: "%s"', href)
+                links.append(href)
+                
+        else:
+            links.append(urljoin(url, href))
 
-    return bs
+    if deepth <= 0:
+        return
+
+    for link in links:
+        absolute_urls(link, deepth-1, extract_id, extract_class, internal_urls)
+
