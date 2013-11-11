@@ -1,6 +1,6 @@
 import logging
 import requests
-from requests.exceptions import TooManyRedirects
+from requests.exceptions import TooManyRedirects, SSLError
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
@@ -18,17 +18,20 @@ logger.addHandler(sh)
 
 checked_urls = []
 
-def absolute_urls(url, deepth=1, extract_id=None, extract_class=None, internal_urls=[]):
+def absolute_urls(url, deepth=1, extract_id=None, extract_class=None, internal_urls=[], verify_cert=True):
     """ check for absolute internal urls
     """
 
     logger.debug('process "%s"', url)
     
     try:
-        r = requests.get(url)
+        r = requests.get(url, verify=verify_cert)
     except TooManyRedirects:
         logger.error('Redirect loop detected at "%s"', url)
         return
+    except SSLError as e:
+        logger.warn('SSLError at "%s": %s', url, e)
+        return absolute_urls(url, deepth, extract_id, extract_class, internal_urls, verify_cert=False)
 
     if r.status_code != 200:
         logger.error('[%d] Error loading page "%s"', r.status_code, url)
@@ -76,5 +79,6 @@ def absolute_urls(url, deepth=1, extract_id=None, extract_class=None, internal_u
         return
 
     for link in links:
-        absolute_urls(link, deepth-1, extract_id, extract_class, internal_urls)
+        absolute_urls(link, deepth-1, extract_id, extract_class,
+                      internal_urls, verify_cert)
 
