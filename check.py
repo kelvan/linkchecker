@@ -1,5 +1,6 @@
 import logging
 import requests
+from requests.exceptions import TooManyRedirects
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
@@ -21,14 +22,19 @@ def absolute_urls(url, deepth=1, extract_id=None, extract_class=None, internal_u
     """ check for absolute internal urls
     """
 
-    logger.info('process "%s"', url)
+    logger.debug('process "%s"', url)
     
-    r = requests.get(url)
+    try:
+        r = requests.get(url)
+    except TooManyRedirects:
+        logger.error('Redirect loop detected at "%s"', url)
+        return
+
     if r.status_code != 200:
         logger.error('[%d] Error loading page "%s"', r.status_code, url)
 
     if not 'text/html' in r.headers['content-type']:
-        logger.debug('skip non-html file: %s', r.headers['content-type'])
+        logger.debug('skip non-html file: %s at "%s"', r.headers['content-type'], url)
         return
 
     bs = BeautifulSoup(r.text)
@@ -41,12 +47,12 @@ def absolute_urls(url, deepth=1, extract_id=None, extract_class=None, internal_u
     links = []
 
     if bs is None:
-        logger.debug('Empty page content, check extract_id/extract_class')
+        logger.debug('Empty page content, check extract_id/extract_class: "%s"', url)
         return
 
     for a in bs.findAll('a'):
         if not a.has_attr('href'):
-            logger.error('Invalid link: "%s"', a)
+            logger.error('Invalid link: "%s" at "%s"', a, url)
             continue
 
         href = a['href']
@@ -54,13 +60,13 @@ def absolute_urls(url, deepth=1, extract_id=None, extract_class=None, internal_u
             continue
 
         if href.startswith('mailto'):
-            logger.debug('mail link found: %s', href)
+            logger.debug('mail link found: %s at "%s"', href, url)
             continue
 
         if href.startswith('http'):
             h = href[href.find('//')+2:]
             if h[:h.find('/')] in internal_urls:
-                logger.warn('internal absolute url found: "%s"', href)
+                logger.warn('internal absolute url found: "%s" at "%s"', href, url)
                 links.append(href)
                 
         else:
