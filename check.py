@@ -1,6 +1,6 @@
 import logging
 import requests
-from requests.exceptions import TooManyRedirects, SSLError
+from requests.exceptions import TooManyRedirects, SSLError, ConnectionError
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
@@ -32,6 +32,9 @@ def absolute_urls(url, deepth=1, extract_id=None, extract_class=None, internal_u
     except SSLError as e:
         logger.warn('SSLError at "%s": %s', url, e)
         return absolute_urls(url, deepth, extract_id, extract_class, internal_urls, verify_cert=False)
+    except ConnectionError as e:
+        logger.error('ConnectionError at "%s": %s', url, e)
+        return
 
     if r.status_code != 200:
         logger.error('[%d] Error loading page "%s"', r.status_code, url)
