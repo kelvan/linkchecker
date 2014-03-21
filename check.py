@@ -18,12 +18,12 @@ logger.addHandler(sh)
 
 checked_urls = []
 
-def absolute_urls(url, deepth=1, extract_id=None, extract_class=None, internal_urls=[], verify_cert=True):
+def absolute_urls(url, depth=1, extract_id=None, extract_class=None, internal_urls=[], verify_cert=True):
     """ check for absolute internal urls
     """
 
     logger.debug('process "%s"', url)
-    
+
     try:
         r = requests.get(url, verify=verify_cert)
     except TooManyRedirects:
@@ -74,7 +74,7 @@ def absolute_urls(url, deepth=1, extract_id=None, extract_class=None, internal_u
             if h[:h.find('/')] in internal_urls:
                 logger.warn('internal absolute url found: "%s" at "%s"', href, url)
                 links.append(href)
-                
+
         else:
             links.append(urljoin(url, href))
 
